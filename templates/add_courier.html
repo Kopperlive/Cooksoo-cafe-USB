@@ -9,9 +9,14 @@
 </head>
 <body>
     <h1>Add Courier</h1>
-    <form action="/add_courier" method="post">
-        Name: <input type="text" name="name"><br>
+    <form action="{{ url_for('add_courier') }}" method="post">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required>
+    
+        <label for="phone">Phone:</label>
+        <input type="text" id="phone" name="phone" required>
+    
         <input type="submit" value="Add Courier">
-    </form>
+    </form>    
 </body>
 </html>

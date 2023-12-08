@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
+    <style>
+        /* Add CSS rule to set the width of images to 100 pixels */
+        img {
+            max-width: 200px;
+            height: auto;
+            display: block;
+            margin: 10px auto;
+        }
+    </style>
     <title>Menu</title>
 </head>
 <body>
@@ -30,7 +39,7 @@
         <div class="dish">
             <h3>{{ dish['name'] }}</h3>
             <p>Price: {{ dish['price'] }}</p>
-            <img src="{{ dish['img_link'] }}" alt="Image of {{ dish['name'] }}" style="max-width: 100%; height: auto; display: block; margin: 10px auto;">
+            <img src="{{ dish['img_link'] }}" alt="Image of {{ dish['name'] }}">
             
             <div class="dish-actions">
                 <!-- Edit Dish Button -->
