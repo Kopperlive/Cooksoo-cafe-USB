@@ -126,10 +126,8 @@ def edit_dish(dish_id):
                      (name, price, category_id, sub_category_id, dish_id))
         conn.commit()
         conn.close()
-        conn = get_db_connection()
-        dish = conn.execute('SELECT * FROM dishes WHERE id = ?', (dish_id,)).fetchone()
-        conn.close()
-        return render_template('menu.html', dish=dish)
+        return redirect(url_for('menu'))
+        
 
     dish = conn.execute('SELECT * FROM dishes WHERE id = ?', (dish_id,)).fetchone()
     categories = conn.execute('SELECT * FROM categories').fetchall()
@@ -410,82 +408,109 @@ def add_courier():
         type: string
         required: true
         description: Full name of the courier
+      - name: phone
+        in: formData
+        type: string
+        required: true
+        description: Phone number of the courier
     responses:
       200:
         description: Courier successfully added
       400:
         description: Error with the provided data
-    """ 
+    """
     if request.method == 'POST':
         name = request.form['name']
+        phone = request.form['phone']  # Assuming a 'phone' field in your form
+        role = 'courier'  # Since this route adds couriers
+
         conn = get_db_connection()
-        conn.execute('INSERT INTO couriers (name) VALUES (?)', (name,))
+        conn.execute('INSERT INTO user (name, phone, role) VALUES (?, ?, ?)', (name, phone, role))
         conn.commit()
         conn.close()
-        return redirect(url_for('admin_panel'))
+        return redirect(url_for('couriers'))
+
     return render_template('add_courier.html')
 
 @app.route('/edit_courier/<int:courier_id>', methods=['GET', 'POST'])
 def edit_courier(courier_id):
     """
-    Edits an existing courier's information.
+    Edit a courier's information.
     ---
     tags:
-      - Courier Management
-    consumes:
-      - application/x-www-form-urlencoded
+      - Couriers
     parameters:
       - name: courier_id
         in: path
         type: integer
         required: true
-        description: The unique identifier for the courier
+        description: The courier's ID
       - name: name
         in: formData
         type: string
         required: true
-        description: The updated full name of the courier
+        description: The new name of the courier
+      - name: phone
+        in: formData
+        type: string
+        required: false
+        description: The new phone number of the courier
     responses:
       200:
         description: Courier information successfully updated
       404:
         description: Courier not found
     """
-    # Edit courier logic
+    conn = get_db_connection()
+    courier = conn.execute('SELECT * FROM user WHERE id = ? AND role = "courier"', (courier_id,)).fetchone()
+    
+    if not courier:
+        conn.close()
+        abort(404)  # Courier not found
+
     if request.method == 'POST':
-        # Logic to edit a courier
-        conn = get_db_connection()
-        conn.execute('UPDATE couriers SET name = ? WHERE id = ?', (name, courier_id))
+        name = request.form['name']
+        phone = request.form['phone']
+        conn.execute('UPDATE user SET name = ?, phone = ? WHERE id = ? AND role = "courier"', (name, phone, courier_id))
         conn.commit()
         conn.close()
-        return redirect(url_for('admin_panel'))
-    return render_template('edit_courier.html', courier_id=courier_id)
+        return redirect(url_for('couriers'))
+
+    conn.close()
+    return render_template('edit_courier.html', courier=courier)
+    
+    courier = conn.execute('SELECT * FROM user WHERE id = ? AND role = "courier"', (courier_id,)).fetchone()
+    conn.close()
+
+    if courier is None:
+        abort(404)  # Courier not found
+
+    return render_template('edit_courier.html', courier=courier)
 
 @app.route('/delete_courier/<int:courier_id>', methods=['POST'])
 def delete_courier(courier_id):
     """
-    Deletes a courier from the database.
+    Delete a courier from the database.
     ---
     tags:
-      - Courier Management
+      - Couriers
     parameters:
       - name: courier_id
         in: path
         type: integer
         required: true
-        description: The unique identifier for the courier to delete
+        description: The courier's ID
     responses:
       200:
         description: Courier successfully deleted
       404:
         description: Courier not found
     """
-    # Delete courier logic
     conn = get_db_connection()
-    conn.execute('DELETE FROM couriers WHERE id = ?', (courier_id,))
+    conn.execute('DELETE FROM user WHERE id = ? AND role = "courier"', (courier_id,))
     conn.commit()
     conn.close()
-    return redirect(url_for('admin_panel'))
+    return redirect(url_for('couriers'))
 
 @app.route('/couriers')
 def couriers():
@@ -511,22 +536,122 @@ def couriers():
 @app.route('/orders')
 def orders():
     """
-    Retrieves a list of all orders.
+    Retrieves a list of all orders with detailed information.
     ---
     tags:
       - Order Management
     responses:
       200:
-        description: A list of orders
+        description: A detailed list of orders
       500:
         description: Error retrieving orders
     """
-    # Display orders
     conn = get_db_connection()
-    cur.execute('''Select * from orders''')
+    cur = conn.cursor()
+    cur.execute('''
+        SELECT orders.id, orders.description, orders.status, dishes.name AS dish_name, user.name AS user_name 
+        FROM orders 
+        LEFT JOIN dishes ON orders.dish_id = dishes.id 
+        LEFT JOIN user ON orders.user_id = user.id
+    ''')
     orders = cur.fetchall()
     conn.close()
     return render_template('orders.html', orders=orders)
+
+@app.route('/create_user', methods=['GET', 'POST'])
+def create_user():
+    """
+    Creates a new user in the database.
+    ---
+    tags:
+      - User Management
+    consumes:
+      - application/x-www-form-urlencoded
+    parameters:
+      - name: name
+        in: formData
+        type: string
+        required: true
+        description: Full name of the user
+      - name: phone
+        in: formData
+        type: string
+        required: true
+        description: Phone number of the user
+      - name: role
+        in: formData
+        type: string
+        required: true
+        description: Role of the user (kitchen, administration, courier, user)
+    responses:
+      200:
+        description: User successfully created
+      400:
+        description: Error with the provided data
+    """
+    if request.method == 'POST':
+        name = request.form['name']
+        phone = request.form['phone']
+        role = request.form['role']
+
+        # Validating the role
+        if role not in ['kitchen', 'administration', 'courier', 'user']:
+            return "Invalid role specified", 400
+
+        conn = get_db_connection()
+        conn.execute('INSERT INTO user (name, phone, role) VALUES (?, ?, ?)', (name, phone, role))
+        conn.commit()
+        conn.close()
+        return redirect(url_for('index'))
+
+    return render_template('create_user.html')
+
+@app.route('/make_order', methods=['GET', 'POST'])
+def make_order():
+    """
+    Create a new order.
+    ---
+    tags:
+      - Order Management
+    parameters:
+      - name: description
+        in: formData
+        type: string
+        required: true
+        description: Description of the order
+      - name: user_id
+        in: formData
+        type: integer
+        required: true
+        description: User ID who is making the order
+      - name: dish_id
+        in: formData
+        type: integer
+        required: true
+        description: Dish ID for the order
+    responses:
+      200:
+        description: Order successfully created
+      400:
+        description: Error in order creation
+    """
+    conn = get_db_connection()
+    if request.method == 'POST':
+        description = request.form['description']
+        user_id = request.form['user_id']
+        dish_id = request.form['dish_id']
+        conn.execute('INSERT INTO orders (description, user_id, dish_id, status) VALUES (?, ?, ?, "Pending")', 
+                     (description, user_id, dish_id))
+        conn.commit()
+        conn.close()
+        return redirect(url_for('orders'))
+
+    # Fetching users and dishes for dropdowns
+    users = conn.execute('SELECT id, name FROM user WHERE role = "user"').fetchall()
+    dishes = conn.execute('SELECT id, name FROM dishes').fetchall()
+    conn.close()
+    return render_template('make_order.html', users=users, dishes=dishes)
+
 
 @app.route('/send_order_to_kitchen/<int:order_id>', methods=['POST'])
 def send_order_to_kitchen(order_id):
@@ -929,4 +1054,4 @@ def update_order_status(order_id):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000)
